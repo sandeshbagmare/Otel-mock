@@ -1,0 +1,82 @@
+# Real OpenTelemetry Collector config — the "front door" for the mock stack.
+#
+# It accepts OTLP from ANY OpenTelemetry SDK (gRPC :4317 and HTTP/protobuf
+# :4318) and fans every signal out to all eight mock providers, re-encoded as
+# OTLP/JSON (encoding: json) so the pure-Python mock servers can read it
+# without a protobuf library. This is what lets unmodified apps work.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+# Note: recent collectors log "otlphttp alias is deprecated; use otlp_http".
+# It's a harmless warning — "otlphttp" still works and is compatible with older
+# collector versions too. Rename to "otlp_http" if you pin a very new collector.
+exporters:
+  debug:
+    verbosity: normal
+
+  otlphttp/sumologic:
+    endpoint: http://mockotel:5001
+    encoding: json
+    compression: none
+  otlphttp/datadog:
+    endpoint: http://mockotel:5002
+    encoding: json
+    compression: none
+  otlphttp/newrelic:
+    endpoint: http://mockotel:5003
+    encoding: json
+    compression: none
+  otlphttp/honeycomb:
+    endpoint: http://mockotel:5004
+    encoding: json
+    compression: none
+  otlphttp/grafana:
+    endpoint: http://mockotel:5005
+    encoding: json
+    compression: none
+  otlphttp/splunk:
+    endpoint: http://mockotel:5006
+    encoding: json
+    compression: none
+  otlphttp/dynatrace:
+    endpoint: http://mockotel:5007
+    encoding: json
+    compression: none
+  otlphttp/elastic:
+    endpoint: http://mockotel:5008
+    encoding: json
+    compression: none
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlphttp/sumologic, otlphttp/datadog, otlphttp/newrelic,
+                  otlphttp/honeycomb, otlphttp/grafana, otlphttp/splunk,
+                  otlphttp/dynatrace, otlphttp/elastic]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlphttp/sumologic, otlphttp/datadog, otlphttp/newrelic,
+                  otlphttp/honeycomb, otlphttp/grafana, otlphttp/splunk,
+                  otlphttp/dynatrace, otlphttp/elastic]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlphttp/sumologic, otlphttp/datadog, otlphttp/newrelic,
+                  otlphttp/honeycomb, otlphttp/grafana, otlphttp/splunk,
+                  otlphttp/dynatrace, otlphttp/elastic]

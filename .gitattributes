@@ -1,0 +1,6 @@
+# Normalize line endings so scripts work on every platform.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
+Dockerfile text eol=lf

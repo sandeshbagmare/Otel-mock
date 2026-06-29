@@ -1,0 +1,44 @@
+# Full local stack:
+#   * mockotel        — all 8 mock providers + unified dashboard (pure Python)
+#   * otel-collector  — real OpenTelemetry Collector front door (gRPC + HTTP)
+#
+# Point any OTEL SDK at the collector and watch every provider light up:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318     (HTTP/protobuf)
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317     (gRPC)
+#
+#   docker compose -f docker/docker-compose.yml up --build
+#
+name: mockotel
+
+services:
+  mockotel:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: mockotel:latest
+    container_name: mockotel
+    command: ["--all", "--host", "0.0.0.0", "--no-browser"]
+    ports:
+      - "5001:5001"   # Sumo Logic
+      - "5002:5002"   # Datadog
+      - "5003:5003"   # New Relic
+      - "5004:5004"   # Honeycomb
+      - "5005:5005"   # Grafana Cloud
+      - "5006:5006"   # Splunk Observability
+      - "5007:5007"   # Dynatrace
+      - "5008:5008"   # Elastic Observability
+      - "8080:8080"   # Unified dashboard
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: mockotel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP (protobuf or json)
+    depends_on:
+      - mockotel
+    restart: unless-stopped
