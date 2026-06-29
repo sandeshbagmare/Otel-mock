@@ -38,6 +38,22 @@ class Store:
                 added.append(rec)
             return added
 
+    def bulk_load(self, records):
+        """Restore previously captured records (e.g. on restart) without
+        re-counting them as new requests. Keeps seq monotonic for new data."""
+        with self._lock:
+            for rec in records:
+                self._buf.append(rec)
+                self._counts[rec.get("signal", "unknown")] += 1
+                self._services[rec.get("service", "unknown")] += 1
+                seq = rec.get("seq", 0)
+                if isinstance(seq, int) and seq > self._seq:
+                    self._seq = seq
+                ts = rec.get("ts")
+                if isinstance(ts, (int, float)):
+                    self.last_seen = ts
+            return len(records)
+
     def since(self, seq, limit=300):
         with self._lock:
             out = [r for r in self._buf if r["seq"] > seq]

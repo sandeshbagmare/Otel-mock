@@ -44,8 +44,9 @@ def _match_native(path, provider):
     return False
 
 
-def make_handler(provider, store):
-    """Build a BaseHTTPRequestHandler subclass bound to one provider + store."""
+def make_handler(provider, store, capture=None):
+    """Build a BaseHTTPRequestHandler subclass bound to one provider + store.
+    If `capture` is given, received records are also appended to disk."""
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -127,7 +128,9 @@ def make_handler(provider, store):
                     "color": provider["color"], "accent": provider["accent"],
                     "endpoint": path, "content_type": ctype, "ingest": ingest}
             if items:
-                store.add_items(items, meta)
+                added = store.add_items(items, meta)
+                if capture is not None:
+                    capture.write_many(added)
             self._send(resp_code, resp_body)
 
         # -- ingest handling -------------------------------------------------
@@ -172,6 +175,6 @@ def make_handler(provider, store):
     return Handler
 
 
-def serve(provider, store, host, port):
+def serve(provider, store, host, port, capture=None):
     """Create (but do not start) a ThreadingHTTPServer for one provider."""
-    return ThreadingHTTPServer((host, port), make_handler(provider, store))
+    return ThreadingHTTPServer((host, port), make_handler(provider, store, capture))

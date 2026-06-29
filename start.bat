@@ -17,8 +17,10 @@ echo.
 echo   [1]  Quick start  ^(Python, no install^)  - pick providers ^& ports
 echo   [2]  Start ALL providers + dashboard on default ports
 echo   [3]  Docker full stack ^(adds real OTEL Collector :4317/:4318^)
-echo   [4]  Send sample telemetry to all providers
-echo   [5]  List providers
+echo   [4]  Docker + REAL backends ^(Jaeger, Zipkin, Prometheus, Grafana^)
+echo   [5]  Send sample telemetry to all providers
+echo   [6]  Replay saved captures to a provider
+echo   [7]  List providers
 echo   [0]  Exit
 echo.
 set /p choice="  Choose [1]: "
@@ -27,8 +29,10 @@ if "%choice%"=="" set choice=1
 if "%choice%"=="1" goto quick
 if "%choice%"=="2" goto all
 if "%choice%"=="3" goto docker
-if "%choice%"=="4" goto sample
-if "%choice%"=="5" goto list
+if "%choice%"=="4" goto dockerreal
+if "%choice%"=="5" goto sample
+if "%choice%"=="6" goto replay
+if "%choice%"=="7" goto list
 if "%choice%"=="0" goto end
 goto menu
 
@@ -49,9 +53,25 @@ echo   Building and starting the Docker stack (Ctrl+C to stop)...
 docker compose -f docker/docker-compose.yml up --build
 goto done
 
+:dockerreal
+where docker >nul 2>nul || ( echo. & echo   Docker not found. Install Docker Desktop first. & pause & goto menu )
+echo.
+echo   Mocks + real backends. UIs: Jaeger :16686  Zipkin :9411  Prometheus :9090  Grafana :3000
+docker compose -f docker/docker-compose.yml -f docker/real-backends.yml up --build
+goto done
+
 :sample
 if not defined PY goto nopy
 %PY% examples\send_test_telemetry.py --all
+echo.
+pause
+goto menu
+
+:replay
+if not defined PY goto nopy
+set /p rport="  Replay captures to which provider port? [5001]: "
+if "%rport%"=="" set rport=5001
+%PY% examples\replay.py --to http://localhost:%rport%
 echo.
 pause
 goto menu

@@ -10,6 +10,7 @@ Or non-interactively:
 """
 
 import argparse
+import os
 import sys
 import threading
 import time
@@ -19,6 +20,7 @@ from . import load_providers, __version__
 from .store import Store
 from .server import serve as serve_provider
 from .dashboard import serve_dashboard
+from .persist import Capture, load_records
 
 BANNER = r"""
                   _              _       _
@@ -39,6 +41,10 @@ def parse_args(argv):
     p.add_argument("--host", default="127.0.0.1", help="bind address (use 0.0.0.0 in Docker)")
     p.add_argument("--no-dashboard", action="store_true", help="don't start the unified dashboard")
     p.add_argument("--no-browser", action="store_true", help="don't open a browser")
+    p.add_argument("--persist", action="store_true",
+                   help="save received telemetry to JSONL and reload it on restart")
+    p.add_argument("--persist-dir", default="captures",
+                   help="directory for capture files (default ./captures)")
     p.add_argument("--list", action="store_true", help="list available providers and exit")
     return p.parse_args(argv)
 
@@ -71,7 +77,9 @@ def choose_interactively(providers):
     dash_port = int(dash) if dash.isdigit() else 8080
     ob = input("  Open the dashboard in your browser? [Y/n] ").strip().lower()
     open_browser = ob not in ("n", "no")
-    return selected, base_port, dash_port, open_browser
+    ps = input("  Save received telemetry to disk so it survives restarts? [y/N] ").strip().lower()
+    persist = ps in ("y", "yes")
+    return selected, base_port, dash_port, open_browser, persist
 
 
 def assign_ports(selected, base_port):
@@ -83,15 +91,28 @@ def assign_ports(selected, base_port):
     return out
 
 
-def run(selected, base_port, dashboard_port, host, open_browser, with_dashboard):
+def run(selected, base_port, dashboard_port, host, open_browser, with_dashboard,
+        persist=False, persist_dir="captures"):
     assigned = assign_ports(selected, base_port)
     servers = []
     endpoints = []
+    captures = []
+
+    if persist:
+        os.makedirs(persist_dir, exist_ok=True)
+        print("  Persisting telemetry to ./%s/ (restored on restart)" % persist_dir)
 
     for provider, port in assigned:
         store = Store()
+        capture = None
+        if persist:
+            restored = store.bulk_load(load_records(persist_dir, provider["id"], limit=2000))
+            capture = Capture(os.path.join(persist_dir, provider["id"] + ".jsonl"))
+            captures.append(capture)
+            if restored:
+                print("    %-20s restored %d record(s)" % (provider["name"], restored))
         try:
-            httpd = serve_provider(provider, store, host, port)
+            httpd = serve_provider(provider, store, host, port, capture)
         except OSError as e:
             print("  ! %-20s could not bind %s:%d (%s) — skipped"
                   % (provider["name"], host, port, e.strerror or e))
@@ -136,6 +157,8 @@ def run(selected, base_port, dashboard_port, host, open_browser, with_dashboard)
         print("\nShutting down…")
         for s in servers:
             s.shutdown()
+        for c in captures:
+            c.close()
     return 0
 
 
@@ -173,6 +196,7 @@ def main(argv=None):
             print("%-12s %-22s default port %d" % (p["id"], p["name"], p["port"]))
         return 0
 
+    persist = args.persist
     if args.all:
         selected, base_port = list(providers), args.base_port
         open_browser, dash_port = not args.no_browser, args.dashboard_port
@@ -186,10 +210,10 @@ def main(argv=None):
         open_browser, dash_port = not args.no_browser, args.dashboard_port
     else:
         # No selection flags -> interactive menu.
-        selected, base_port, dash_port, open_browser = choose_interactively(providers)
+        selected, base_port, dash_port, open_browser, persist = choose_interactively(providers)
 
     return run(selected, base_port, dash_port, args.host,
-               open_browser, not args.no_dashboard)
+               open_browser, not args.no_dashboard, persist, args.persist_dir)
 
 
 if __name__ == "__main__":

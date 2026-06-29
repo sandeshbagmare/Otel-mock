@@ -27,6 +27,9 @@ in memory, and disappears when you stop it.
   Grafana :5005      Splunk :5006    Dynatrace :5007    Elastic :5008
         └──────────────── all aggregated by ────────────────┘
                   ★ Unified Dashboard :8080
+
+  (optional) the same collector also feeds REAL open-source backends:
+  Jaeger :16686    Zipkin :9411    Prometheus :9090    Grafana :3000
 ```
 
 ---
@@ -164,6 +167,45 @@ gone when you stop the process.
 
 ---
 
+## Real backends too (optional)
+
+The mocks show you *what was sent*. If you also want **real, self-hostable
+backends with their genuine UIs**, bring up the real-backends overlay — the same
+collector fans every signal out to the mocks **and** to real software:
+
+```bash
+docker compose -f docker/docker-compose.yml -f docker/real-backends.yml up --build
+```
+
+| Real backend | UI                       | Signals  |
+|--------------|--------------------------|----------|
+| Jaeger       | <http://localhost:16686> | traces   |
+| Zipkin       | <http://localhost:9411>  | traces   |
+| Prometheus   | <http://localhost:9090>  | metrics  |
+| Grafana      | <http://localhost:3000>  | traces + metrics (anonymous admin, datasources pre-provisioned) |
+
+Point your app at the collector (`:4318` / `:4317`) and one trace appears in the
+mock providers **and** in Jaeger, Zipkin, and Grafana at the same time.
+
+## Persist & replay (optional)
+
+By default everything is in-memory and vanishes on stop. Add `--persist` to save
+received telemetry to `captures/<provider>.jsonl` and **reload it on the next
+start**, so your data survives restarts:
+
+```bash
+python -m mockotel --all --persist
+```
+
+Replay captured telemetry into any provider, the collector, or the real
+backends — it rebuilds OTLP/JSON from the captures and re-sends it:
+
+```bash
+python examples/replay.py --to http://localhost:5001          # into Sumo Logic mock
+python examples/replay.py --collector http://localhost:4318    # through the collector
+python examples/replay.py --file captures/datadog.jsonl --to http://localhost:5002
+```
+
 ## CLI reference
 
 ```
@@ -172,6 +214,8 @@ python -m mockotel --all                 # start every provider + dashboard
 python -m mockotel --providers sumologic,datadog
 python -m mockotel --all --base-port 6000        # shift ports (provider i -> 6000+i)
 python -m mockotel --all --dashboard-port 9000
+python -m mockotel --all --persist               # save to ./captures and reload on restart
+python -m mockotel --all --persist --persist-dir mydata
 python -m mockotel --all --no-dashboard --no-browser
 python -m mockotel --host 0.0.0.0        # bind all interfaces (used in Docker)
 python -m mockotel --list                # list providers and exit

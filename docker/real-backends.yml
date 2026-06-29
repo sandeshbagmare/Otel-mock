@@ -1,0 +1,68 @@
+# Overlay that adds GENUINE, self-hostable open-source backends with real UIs
+# next to the mocks. Combine it with the base stack:
+#
+#   docker compose -f docker/docker-compose.yml -f docker/real-backends.yml up --build
+#
+# Real UIs once it's up:
+#   Jaeger      http://localhost:16686   (traces)
+#   Zipkin      http://localhost:9411     (traces)
+#   Prometheus  http://localhost:9090     (metrics)
+#   Grafana     http://localhost:3000     (dashboards; anonymous admin)
+#   + all 8 mocks (5001-5008) and the unified dashboard (8080) as before.
+#
+# Point your app at the collector (4317 gRPC / 4318 HTTP) and the data lands in
+# the mocks AND the real backends at the same time.
+name: mockotel
+
+services:
+  # Swap the collector onto the "real" config (same container path -> override).
+  otel-collector:
+    volumes:
+      - ./otel-collector-real-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - mockotel
+      - jaeger
+      - zipkin
+      - prometheus
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: mockotel-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"   # Jaeger UI
+    restart: unless-stopped
+
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: mockotel-zipkin
+    ports:
+      - "9411:9411"     # Zipkin UI
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mockotel-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"     # Prometheus UI
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mockotel-grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_DEFAULT_THEME=dark
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"     # Grafana UI
+    depends_on:
+      - prometheus
+      - jaeger
+    restart: unless-stopped
