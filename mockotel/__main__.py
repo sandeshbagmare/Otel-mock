@@ -68,7 +68,7 @@ def choose_interactively(providers):
                 match = [p for p in providers if p["id"] == tok or p["name"].lower() == tok]
                 selected.extend(match)
         if not selected:
-            print("  Nothing matched — defaulting to ALL.")
+            print("  Nothing matched - defaulting to ALL.")
             selected = list(providers)
 
     base = input("  Base port for providers? [5001] ").strip()
@@ -114,7 +114,7 @@ def run(selected, base_port, dashboard_port, host, open_browser, with_dashboard,
         try:
             httpd = serve_provider(provider, store, host, port, capture)
         except OSError as e:
-            print("  ! %-20s could not bind %s:%d (%s) — skipped"
+            print("  ! %-20s could not bind %s:%d (%s) - skipped"
                   % (provider["name"], host, port, e.strerror or e))
             continue
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -154,7 +154,7 @@ def run(selected, base_port, dashboard_port, host, open_browser, with_dashboard,
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nShutting down…")
+        print("\nShutting down...")
         for s in servers:
             s.shutdown()
         for c in captures:
